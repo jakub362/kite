@@ -1,0 +1,7 @@
+# Chromium source, toolchains and build output: huge, never committed.
+/chromium/
+/depot_tools/
+/downloads/
+/logs/
+*.log
+/dist/

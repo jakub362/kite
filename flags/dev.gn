@@ -1,0 +1,24 @@
+# Build settings for day-to-day development: fast to rebuild, not for daily use.
+# Copied into chromium/src/out/Dev/args.gn by scripts/build.sh.
+
+# Optimized code (a debug build is very slow to browse with).
+is_debug = false
+
+# Split Chromium into many small shared libraries, so a change only relinks
+# one of them instead of one giant binary. Much faster rebuilds.
+is_component_build = true
+
+# No debug symbols: smaller output and faster linking. Raise to 1 when we
+# need readable crash stack traces.
+symbol_level = 0
+blink_symbol_level = 0
+v8_symbol_level = 0
+
+# Don't use Google's profile-guided optimization data (not in the tarball).
+chrome_pgo_phase = 0
+
+# Build with plain ninja, not siso (Google's remote-build tool; we build locally).
+use_siso = false
+
+# Keep building when a newer compiler warns about something harmless.
+treat_warnings_as_errors = false

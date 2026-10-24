@@ -1,0 +1,119 @@
+name: Build part
+
+# One part of the build chain in build.yml.
+
+on:
+  workflow_call:
+    inputs:
+      part:
+        type: string
+        required: true
+      prev:
+        description: Part whose unfinished build to continue ("" for the first part)
+        type: string
+        required: true
+    outputs:
+      done:
+        value: ${{ jobs.build.outputs.done }}
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 355
+    outputs:
+      done: ${{ steps.build.outputs.done }}
+    steps:
+      - name: Note start time
+        run: echo "JOB_START=$(date +%s)" >> "$GITHUB_ENV"
+
+      # The runner starts with ~14 GB free; Chromium needs ~45 GB. Delete
+      # preinstalled SDKs we don't use.
+      - name: Free disk space
+        run: |
+          df -h / /mnt
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup \
+            /opt/hostedtoolcache /usr/local/share/powershell /usr/share/swift \
+            /usr/local/julia* /usr/local/share/chromium /usr/local/lib/node_modules
+          sudo docker image prune --all --force > /dev/null || true
+          df -h / /mnt
+
+      - uses: actions/checkout@v4
+
+      # Put Chromium on whichever disk has more room (the runner has two).
+      - name: Pick a disk for Chromium
+        run: |
+          avail() { df --output=avail -BG "$1" | tail -1 | tr -dc '0-9'; }
+          if [ "$(avail /mnt)" -gt "$(avail /)" ]; then
+            sudo mkdir -p /mnt/chromium
+            sudo chown "$USER" /mnt/chromium
+            ln -s /mnt/chromium chromium
+          fi
+
+      - name: Download Chromium source
+        run: |
+          scripts/fetch-source.sh
+          rm -f downloads/*.tar.xz
+
+      - name: Download toolchain
+        run: scripts/sync-toolchain.sh
+
+      - name: Get unfinished build from part ${{ inputs.prev }}
+        if: inputs.prev != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: out-part${{ inputs.prev }}
+          path: ${{ runner.temp }}/out-save
+
+      # tar keeps file timestamps, so ninja sees the old work as up to date.
+      - name: Unpack unfinished build
+        if: inputs.prev != ''
+        run: |
+          cat "$RUNNER_TEMP"/out-save/out.tar.zst.* | zstd -d -T0 | tar -x -C chromium/src
+          rm -rf "$RUNNER_TEMP/out-save"
+
+      - name: Build
+        id: build
+        run: |
+          # Stop with ~35 min of the job's time left, for saving the progress.
+          left=$(( 355 * 60 - ($(date +%s) - JOB_START) - 35 * 60 ))
+          set +e
+          BUILD_TIMEOUT="${left}s" scripts/build.sh ci
+          code=$?
+          set -e
+          if [ "$code" -eq 0 ]; then
+            echo "done=true" >> "$GITHUB_OUTPUT"
+          elif [ "$code" -eq 124 ]; then
+            echo "Out of time for this part; the next part continues."
+            echo "done=false" >> "$GITHUB_OUTPUT"
+          else
+            exit "$code"
+          fi
+
+      # Split into 1.9 GB pieces to keep each upload a manageable size.
+      - name: Save unfinished build
+        if: steps.build.outputs.done == 'false'
+        run: |
+          mkdir -p "$RUNNER_TEMP/out-save"
+          tar -C chromium/src -cf - out/Release | zstd -T0 -3 | split -b 1900M - "$RUNNER_TEMP/out-save/out.tar.zst."
+          ls -lh "$RUNNER_TEMP/out-save"
+          df -h / /mnt
+
+      - uses: actions/upload-artifact@v4
+        if: steps.build.outputs.done == 'false'
+        with:
+          name: out-part${{ inputs.part }}
+          path: ${{ runner.temp }}/out-save/
+          retention-days: 1
+          compression-level: 0
+
+      - name: Package Kite
+        if: steps.build.outputs.done == 'true'
+        run: scripts/package.sh
+
+      - uses: actions/upload-artifact@v4
+        if: steps.build.outputs.done == 'true'
+        with:
+          name: kite-linux-x64
+          path: dist/*.tar.xz
+          retention-days: 30
+          compression-level: 0

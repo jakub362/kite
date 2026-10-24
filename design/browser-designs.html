@@ -1,0 +1,642 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Browser UI Concepts</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=Instrument+Sans:wght@400;500;600&family=Manrope:wght@400;500;600;700&family=Onest:wght@400;500;600&family=Outfit:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600&family=Rubik:wght@400;500&family=Sora:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{display:flex;flex-direction:column;overflow:hidden;background:#d8dbe0;color:#1f2329;font-family:'Instrument Sans',system-ui,sans-serif}
+
+/* ---------- Viewer shell ---------- */
+.picker{display:flex;align-items:center;gap:18px;padding:10px 18px;background:#f5f6f8;border-bottom:1px solid #c9cdd4;flex-wrap:wrap}
+.brand{font-weight:600;font-size:13px;color:#5b616c;white-space:nowrap}
+.nums{display:flex;gap:4px;flex-wrap:wrap}
+.nums button,.ctrl button{height:30px;border-radius:8px;border:1px solid #cdd1d8;background:#fff;color:#1f2329;font:600 12.5px/1 'Instrument Sans',system-ui,sans-serif;cursor:pointer}
+.nums button{width:30px}
+.nums button:hover,.ctrl button:hover{border-color:#8b919c}
+.nums button.on{background:#1f2329;color:#fff;border-color:#1f2329}
+.info{flex:1;min-width:260px}
+.info b{font-size:15px;font-weight:600}
+.info p{margin:2px 0 0;font-size:12.5px;line-height:1.4;color:#5b616c;max-width:72ch}
+.ctrl{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.ctrl button{padding:0 10px;display:inline-flex;align-items:center;gap:6px}
+.ctrl button[aria-pressed="true"]{background:#1f2329;color:#fff;border-color:#1f2329}
+.keys{font-size:12px;color:#6b717c;white-space:nowrap}
+.stage{flex:1;min-height:0;display:flex;padding:18px}
+@media (max-width:700px){.stage{padding:8px}.keys{display:none}.picker{gap:10px;padding:8px 10px}}
+
+/* ---------- Shared browser parts ---------- */
+.win{--th:36px;--bh:46px;flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;position:relative;border-radius:12px;overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.2),0 24px 60px rgba(20,24,32,.28)}
+.win.compact{--th:28px;--bh:36px}
+.win.compact .c-hide{display:none}
+.win :focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+.view{flex:1;min-height:0;min-width:0;position:relative;background:#fff}
+.view iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#fff}
+.embed-note{position:absolute;left:10px;bottom:10px;z-index:2;max-width:380px;padding:7px 10px;border-radius:8px;background:rgba(20,22,26,.86);color:#fff;font:12px/1.35 system-ui,sans-serif;pointer-events:none}
+.tab{display:flex;align-items:center;gap:8px;min-width:0;cursor:pointer;user-select:none}
+.tab .tt{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fav{width:14px;height:14px;border-radius:4px;background:var(--c);flex:none}
+.tx{display:grid;place-items:center;width:18px;height:18px;padding:0;border:0;border-radius:5px;background:transparent;color:inherit;opacity:.55;cursor:pointer;flex:none}
+.tx:hover{opacity:1;background:rgba(127,127,127,.2)}
+.ib{display:grid;place-items:center;width:32px;height:32px;padding:0;border:0;border-radius:8px;background:transparent;color:inherit;cursor:pointer;flex:none}
+.ib:hover,.ib[aria-expanded="true"]{background:rgba(127,127,127,.16)}
+.ib:disabled{opacity:.3;cursor:default;background:transparent}
+.win.compact .ib{width:28px;height:28px}
+.url{flex:1;min-width:0;height:100%;padding:0;border:0;background:transparent;color:inherit;font:inherit;outline:none}
+.url::placeholder{color:inherit;opacity:.5}
+.shield{display:flex;align-items:center;gap:5px;flex:none;padding:4px 9px;border:0;border-radius:999px;background:transparent;color:inherit;font:inherit;font-size:12px;cursor:pointer;white-space:nowrap}
+.shield .lbl{display:none;font-style:normal}
+.sp{flex:1}
+.wc{display:flex;align-items:center;gap:8px;padding:0 6px;flex:none}
+.wc span{width:12px;height:12px;border-radius:50%;background:currentColor;opacity:.22}
+.wc span.x{opacity:.45}
+
+/* Menu popover (vertical tabs, compact, ad blocker) */
+.mpop{position:absolute;z-index:20;min-width:220px;padding:6px;border-radius:12px;background:var(--pop-bg);color:var(--pop-c);box-shadow:0 14px 40px rgba(0,0,0,.28),0 0 0 1px var(--pop-ln)}
+.mrow{display:flex;align-items:center;justify-content:space-between;gap:16px;width:100%;padding:9px 10px;border:0;border-radius:8px;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.mrow:hover{background:var(--pop-hv)}
+.sw{position:relative;width:30px;height:18px;border-radius:999px;background:var(--pop-ln);flex:none;transition:background .15s}
+.sw::after{content:'';position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.3);transition:transform .15s}
+.sw.on{background:var(--ac)}
+.sw.on::after{transform:translateX(12px)}
+
+/* ---------- 1 Clean ---------- */
+.d1{--ac:#2f6bff;--pop-bg:#fff;--pop-c:#1d2330;--pop-ln:#dfe3ea;--pop-hv:#f1f3f6;
+  --vs-bg:#f3f5f8;--vt-c:#4a5263;--vt-hv:#e9edf2;--vt-on:#fff;--vt-onc:#1d2330;--vt-ons:0 1px 2px rgba(0,0,0,.08),inset 3px 0 0 #2f6bff;
+  background:#fff;color:#1d2330;font-family:'Figtree',system-ui,sans-serif;font-size:13px}
+.d1-tabs{display:flex;align-items:flex-end;gap:2px;height:calc(var(--th) + 8px);padding:8px 8px 0;background:#e3e7ee}
+.d1 .tab{flex:0 1 210px;height:var(--th);padding:0 8px 0 12px;border-radius:10px 10px 0 0;color:#4a5263}
+.d1 .tab:hover{background:#ecf0f5}
+.d1 .tab.on{background:#fff;color:#1d2330}
+.d1-tabs .newt{width:28px;height:28px;margin:0 0 4px 4px}
+.d1-tabs .wc{align-self:center;color:#4a5263}
+.d1-bar{display:flex;align-items:center;gap:4px;height:var(--bh);padding:0 8px;border-bottom:1px solid #e6e9ef}
+.d1-omni{flex:1;display:flex;align-items:center;gap:8px;height:calc(var(--bh) - 12px);padding:0 14px;border-radius:999px;background:#eef1f5;color:#6b7385}
+.d1-omni .url{color:#1d2330}
+.d1-omni:focus-within{background:#fff;box-shadow:inset 0 0 0 2px #2f6bff}
+.d1 .shield{background:#e8efff;color:#2f6bff}
+.d1 .shield:not(.on){background:#eef1f5;color:#8a91a1}
+.d1 .vside{border-right:1px solid #e6e9ef}
+
+/* ---------- 2 One line ---------- */
+.d2{--ac:#8ab4ff;--pop-bg:#33363b;--pop-c:#e8eaed;--pop-ln:#4a4e55;--pop-hv:#3e4147;
+  --vs-bg:#2a2c30;--vt-c:#b9bdc4;--vt-hv:#35383d;--vt-on:#45484e;--vt-onc:#fff;--vt-ons:inset 0 0 0 1px #5a5e65;
+  background:#2a2c30;color:#e8eaed;font-family:'IBM Plex Sans',system-ui,sans-serif;font-size:13px}
+.d2-row{display:flex;align-items:center;gap:4px;height:var(--bh);padding:0 8px}
+.d2-tabs{flex:1;display:flex;align-items:center;gap:4px;min-width:0}
+.d2 .tab{flex:0 1 150px;min-width:38px;height:calc(var(--bh) - 12px);padding:0 8px;border-radius:8px;background:#35383d;color:#b9bdc4}
+.d2 .tab:hover{background:#3e4147}
+.d2 .tab-in{flex:1 1 380px;min-width:180px;display:flex;align-items:center;gap:8px;height:calc(var(--bh) - 10px);padding:0 8px 0 10px;border-radius:9px;background:#45484e;box-shadow:inset 0 0 0 1px #5a5e65}
+.d2 .tab-in:focus-within{box-shadow:inset 0 0 0 2px #8ab4ff}
+.d2 .shield{color:#8ab4ff}
+.d2 .shield:not(.on){color:#80858d}
+
+/* ---------- 3 Frameless ---------- */
+.d3{--ac:#8fd3c4;--pop-bg:rgba(30,33,39,.97);--pop-c:#eaeef0;--pop-ln:#3a3f47;--pop-hv:rgba(255,255,255,.06);
+  --vs-bg:rgba(24,27,32,.9);--vt-c:#b8c0c4;--vt-hv:rgba(255,255,255,.06);--vt-on:rgba(143,211,196,.16);--vt-onc:#eaeef0;--vt-ons:none;
+  background:#15171b;color:#eaeef0;font-family:'Outfit',system-ui,sans-serif;font-size:13px}
+.d3 .view{margin:8px;border-radius:12px;overflow:hidden}
+.d3-float{position:absolute;top:16px;left:50%;z-index:5;transform:translateX(-50%);width:min(720px,calc(100% - 32px));display:flex;flex-direction:column;align-items:center;gap:6px;opacity:.86;transition:opacity .2s}
+.d3-float:hover,.d3-float:focus-within{opacity:1}
+.d3-bar{display:flex;align-items:center;gap:4px;width:100%;height:42px;padding:0 6px;border-radius:14px;background:rgba(24,27,32,.9);backdrop-filter:blur(18px);box-shadow:0 10px 30px rgba(0,0,0,.35),inset 0 0 0 1px rgba(255,255,255,.08)}
+.d3-bar .url{padding:0 8px}
+.d3-tabs{display:flex;gap:4px;max-width:100%;padding:4px;overflow:hidden;border-radius:999px;background:rgba(24,27,32,.9);backdrop-filter:blur(18px);box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)}
+.d3 .tab{height:26px;padding:0 9px;border-radius:999px;color:#b8c0c4}
+.d3 .tab .tt{max-width:0;transition:max-width .25s}
+.d3-float:hover .tab .tt,.d3 .tab.on .tt{max-width:140px}
+.d3 .tab:hover{background:rgba(255,255,255,.06)}
+.d3 .tab.on{background:rgba(143,211,196,.16);color:#eaeef0}
+.d3 .newt{width:26px;height:26px;border-radius:999px}
+.d3 .shield{color:#8fd3c4}
+.d3.compact .d3-tabs{display:none}
+.d3.compact .d3-float:hover .d3-tabs{display:flex}
+
+/* ---------- 4 Glass ---------- */
+.d4{--ac:#cbb8ff;--pop-bg:rgba(40,32,78,.96);--pop-c:#f3f1ff;--pop-ln:rgba(255,255,255,.18);--pop-hv:rgba(255,255,255,.08);
+  --vs-bg:transparent;--vt-c:rgba(243,241,255,.75);--vt-hv:rgba(255,255,255,.08);--vt-on:rgba(255,255,255,.16);--vt-onc:#fff;--vt-ons:inset 0 0 0 1px rgba(255,255,255,.18);
+  color:#f3f1ff;font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:13px;background:radial-gradient(circle at 15% 20%,#6d4bd8 0,transparent 45%),radial-gradient(circle at 85% 10%,#1f9e9e 0,transparent 40%),radial-gradient(circle at 70% 95%,#c84f78 0,transparent 45%),#1a1530}
+.d4-top{display:flex;align-items:center;gap:4px;padding:8px 10px 4px}
+.d4 .tab{flex:0 1 190px;height:var(--th);padding:0 8px 0 10px;border-radius:10px;color:rgba(243,241,255,.75)}
+.d4 .tab:hover{background:rgba(255,255,255,.08)}
+.d4 .tab.on{background:rgba(255,255,255,.16);color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.18)}
+.d4-bar{display:flex;align-items:center;gap:6px;height:calc(var(--bh) + 4px);padding:0 10px 6px}
+.d4.vert .d4-bar{padding-top:6px;height:calc(var(--bh) + 12px)}
+.d4-omni{flex:1;display:flex;align-items:center;gap:8px;height:calc(var(--bh) - 10px);padding:0 14px;border-radius:12px;background:rgba(255,255,255,.1);box-shadow:inset 0 0 0 1px rgba(255,255,255,.14);backdrop-filter:blur(20px)}
+.d4-omni:focus-within{box-shadow:inset 0 0 0 2px #cbb8ff}
+.d4 .shield{background:rgba(203,184,255,.18);color:#e6dcff}
+.d4 .view{margin:0 10px 10px;border-radius:12px;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,.35)}
+.d4 .vbody .view{margin-left:4px}
+
+/* ---------- 5 Command ---------- */
+.d5{--ac:#2e7d5b;--pop-bg:#fff;--pop-c:#1e2a22;--pop-ln:#d3d8cf;--pop-hv:#eef0ea;
+  --vs-bg:#eef0ea;--vt-c:#5d6b61;--vt-hv:#e3e7de;--vt-on:#1e2a22;--vt-onc:#eef0ea;--vt-ons:none;
+  background:#eef0ea;color:#1e2a22;font-family:'Sora',system-ui,sans-serif;font-size:13px}
+.d5-top{display:flex;align-items:center;gap:6px;padding:10px 12px 0}
+.d5 .tab{flex:0 1 170px;height:28px;padding:0 6px 0 10px;border-radius:999px;color:#5d6b61;box-shadow:inset 0 0 0 1px #d3d8cf}
+.d5 .tab:not(.on):hover{background:#e3e7de}
+.d5 .tab.on{background:#1e2a22;color:#eef0ea;box-shadow:none}
+.d5 .newt{width:28px;height:28px;border-radius:999px}
+.d5-cmd{display:grid;grid-template-columns:1fr minmax(0,780px) 1fr;align-items:center;gap:12px;padding:12px 12px 14px}
+.d5-side{display:flex;align-items:center;gap:2px}
+.d5-side.r{justify-content:flex-end}
+.d5-omni{display:flex;align-items:center;gap:10px;height:48px;padding:0 8px 0 16px;border-radius:14px;background:#fff;color:#5d6b61;box-shadow:0 1px 0 #d3d8cf,0 8px 24px rgba(30,42,34,.08)}
+.d5-omni .url{color:#1e2a22;font-size:15px}
+.d5-omni:focus-within{box-shadow:0 0 0 2px #2e7d5b}
+.d5 .shield{background:#e3efe7;color:#2e7d5b}
+.d5.compact .d5-cmd{padding:6px 12px 8px}
+.d5.compact .d5-omni{height:38px}
+.d5 .view{border-top:1px solid #d3d8cf}
+.d5 .vbody{border-top:1px solid #d3d8cf}
+.d5 .vbody .view{border-top:0;border-left:1px solid #d3d8cf}
+.d5 .vside .tab{border-radius:999px}
+@media (max-width:900px){.d5-cmd{grid-template-columns:auto minmax(0,1fr) auto}}
+
+/* ---------- 6 Islands ---------- */
+.d6{--ac:#ffb547;--pop-bg:#2c3036;--pop-c:#e9e6df;--pop-ln:#454a52;--pop-hv:#363a41;
+  --vs-bg:#2c3036;--vt-c:#b9b5ad;--vt-hv:#33373e;--vt-on:#3a3e45;--vt-onc:#fff;--vt-ons:inset 3px 0 0 #ffb547;
+  background:#1f2226;color:#e9e6df;font-family:'Manrope',system-ui,sans-serif;font-size:13px}
+.d6-row{display:flex;align-items:center;gap:8px;padding:10px 10px 6px}
+.d6.vert .d6-row{padding-bottom:10px}
+.isl{display:flex;align-items:center;gap:2px;height:var(--bh);padding:0 6px;border-radius:14px;background:#2c3036;flex:none}
+.d6-omni{flex:1;gap:8px;padding:0 6px 0 14px}
+.d6-omni:focus-within{box-shadow:0 0 0 2px #ffb547}
+.d6 .shield{height:calc(var(--bh) - 14px);padding:0 10px;background:#3a3220;color:#ffb547}
+.d6 .shield .lbl{display:inline-block;max-width:0;overflow:hidden;transition:max-width .25s}
+.d6 .shield:hover .lbl,.d6 .shield:focus-visible .lbl{max-width:90px}
+.d6-tabs{display:flex;gap:6px;padding:0 10px 10px;overflow:hidden}
+.d6 .tab{flex:0 1 180px;height:var(--th);padding:0 8px 0 12px;border-radius:12px;background:#2c3036;color:#b9b5ad}
+.d6 .tab:hover{background:#33373e}
+.d6 .tab.on{background:#3a3e45;color:#fff;box-shadow:inset 0 -2px 0 #ffb547}
+.d6 .newt{width:var(--th);height:var(--th);border-radius:12px;background:#2c3036}
+.d6 .view{margin:0 10px 10px;border-radius:14px;overflow:hidden}
+.d6 .vside{margin:0 0 10px 10px;border-radius:14px}
+
+/* ---------- 7 Bottom bar ---------- */
+.d8{--ac:#4cc2ff;--pop-bg:#1a3350;--pop-c:#dbe8f5;--pop-ln:#2b4a6c;--pop-hv:#22406278;
+  --vs-bg:#13263a;--vt-c:#8fa7bf;--vt-hv:#17304a;--vt-on:#1a3350;--vt-onc:#fff;--vt-ons:inset 3px 0 0 #4cc2ff;
+  background:#0f1d2b;color:#dbe8f5;font-family:'Rubik',system-ui,sans-serif;font-size:13px}
+.d8-tabs{display:flex;gap:4px;padding:8px 10px 0;background:#13263a}
+.d8 .tab{flex:0 1 180px;height:var(--th);padding:0 8px 0 10px;border-radius:10px 10px 0 0;color:#8fa7bf}
+.d8 .tab:hover{background:#17304a}
+.d8 .tab.on{background:#1a3350;color:#fff}
+.d8 .newt{width:30px;height:30px}
+.d8-bar{display:flex;align-items:center;gap:4px;height:calc(var(--bh) + 8px);padding:0 10px;background:#1a3350}
+.d8-omni{flex:1;display:flex;align-items:center;gap:8px;height:calc(var(--bh) - 8px);padding:0 14px;border-radius:999px;background:#0f1d2b}
+.d8-omni:focus-within{box-shadow:0 0 0 2px #4cc2ff}
+.d8 .shield{color:#4cc2ff}
+
+/* ---------- 8 Split ---------- */
+.d9{--ac:#6c4cf5;--pop-bg:#fff;--pop-c:#211d33;--pop-ln:#e1deec;--pop-hv:#f3f2f7;
+  --vs-bg:transparent;--vt-c:#5f5a78;--vt-hv:#eae8f2;--vt-on:#fff;--vt-onc:#211d33;--vt-ons:0 1px 3px rgba(33,29,51,.12);
+  background:#f3f2f7;color:#211d33;font-family:'Instrument Sans',system-ui,sans-serif;font-size:13px}
+.d9-tabs{display:flex;align-items:center;gap:4px;padding:8px 10px 0}
+.d9 .tab{flex:0 1 180px;height:var(--th);padding:0 8px 0 10px;border-radius:9px;color:#5f5a78}
+.d9 .tab:hover{background:#eae8f2}
+.d9 .tab.on{background:#fff;color:#211d33;box-shadow:0 1px 3px rgba(33,29,51,.12)}
+.d9-bar{display:flex;align-items:center;gap:4px;height:var(--bh);padding:0 10px}
+.d9-omni{flex:1;display:flex;align-items:center;gap:8px;height:calc(var(--bh) - 12px);padding:0 14px;border-radius:10px;background:#fff;box-shadow:inset 0 0 0 1px #e1deec}
+.d9-omni:focus-within{box-shadow:inset 0 0 0 2px #6c4cf5}
+.d9 .shield{background:#efecfa;color:#6c4cf5}
+.d9-split{flex:1;min-height:0;min-width:0;display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:0 8px 8px}
+.d9-pane{display:flex;flex-direction:column;min-height:0;min-width:0;border-radius:10px;overflow:hidden;background:#fff;box-shadow:0 0 0 1px #e1deec}
+.d9-cap{display:flex;align-items:center;gap:8px;height:28px;padding:0 10px;border:0;border-bottom:1px solid #ece9f5;background:#faf9fd;color:#5f5a78;font:inherit;font-size:12px;text-align:left;cursor:pointer;flex:none}
+.d9-cap.focus{color:#6c4cf5;font-weight:600;cursor:default}
+@media (max-width:800px){.d9-split{grid-template-columns:1fr;grid-template-rows:1fr 1fr}}
+
+/* ---------- 9 Slate ---------- */
+.d10{--ac:#3ddbb8;--pop-bg:#26292c;--pop-c:#e3e6e8;--pop-ln:#3a3f44;--pop-hv:#2f3337;
+  --vs-bg:transparent;--vt-c:#a9afb4;--vt-hv:#232629;--vt-on:#2b2f33;--vt-onc:#fff;--vt-ons:inset 3px 0 0 #3ddbb8;
+  background:#1b1d1f;color:#e3e6e8;font-family:'Onest',system-ui,sans-serif;font-size:13px}
+.d10-tabs{display:flex;align-items:center;gap:4px;padding:8px 8px 0}
+.d10 .tab{flex:0 1 190px;height:var(--th);padding:0 6px 0 10px;border-radius:9px;color:#a9afb4}
+.d10 .tab:hover{background:#232629}
+.d10 .tab.on{background:#2b2f33;color:#fff;box-shadow:inset 0 -2px 0 #3ddbb8}
+.d10-top{display:flex;align-items:center;gap:4px;height:calc(var(--bh) + 4px);padding:0 8px}
+.d10-omni{flex:1;display:flex;align-items:center;gap:8px;height:calc(var(--bh) - 10px);padding:0 12px;border-radius:10px;background:#26292c;color:#8d9398}
+.d10-omni .url{color:#e3e6e8}
+.d10-omni:focus-within{box-shadow:0 0 0 2px #3ddbb8}
+.d10 .shield{color:#3ddbb8}
+.d10 .view{margin:0 8px 8px;border-radius:10px;overflow:hidden}
+.d10 .vbody .view{margin-left:2px}
+
+/* ---------- Vertical tabs (works in every design) ---------- */
+.vbody{flex:1;min-height:0;min-width:0;display:flex}
+.win .vside{width:212px;flex:none;display:flex;flex-direction:column;gap:2px;padding:6px;overflow-y:auto;overflow-x:hidden;background:var(--vs-bg);color:var(--vt-c);transition:width .2s}
+.win .vside .tab{flex:none;width:auto;height:34px;margin:0;padding:0 6px 0 10px;border:0;border-radius:9px;background:transparent;color:var(--vt-c);box-shadow:none}
+.win .vside .tab:hover{background:var(--vt-hv)}
+.win .vside .tab.on{background:var(--vt-on);color:var(--vt-onc);box-shadow:var(--vt-ons)}
+.vnew{display:flex;align-items:center;gap:8px;height:34px;padding:0 10px;border:0;border-radius:9px;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer;flex:none}
+.vnew:hover{background:var(--vt-hv)}
+.vmini{margin-top:auto}
+.win .vside.mini{width:48px}
+.vside.mini .tt,.vside.mini .tx,.vside.mini .vnew span{display:none}
+.win .vside.mini .tab,.vside.mini .vnew{justify-content:center;padding:0}
+.vside.mini .vmini svg{transform:scaleX(-1)}
+/* Frameless: a floating rail that opens on hover */
+.d3 .vside{position:absolute;left:16px;top:50%;z-index:5;transform:translateY(-50%);width:46px;max-height:calc(100% - 150px);padding:5px;border-radius:16px;backdrop-filter:blur(18px);box-shadow:0 10px 30px rgba(0,0,0,.35),inset 0 0 0 1px rgba(255,255,255,.08)}
+.d3 .vside:hover,.d3 .vside:focus-within{width:224px}
+.d3 .vside .tab{padding:0 9px}
+.d3 .vside .tab .tt,.d3 .vside .tab.on .tt,.d3 .vside .vnew span{max-width:0;overflow:hidden;white-space:nowrap}
+.d3 .vside .tx{display:none}
+.d3 .vside:hover .tab .tt,.d3 .vside:hover .tab.on .tt,.d3 .vside:hover .vnew span,.d3 .vside:focus-within .tab .tt{max-width:170px}
+.d3 .vside:hover .tx{display:grid}
+.d3 .vside .vnew{padding:0 11px}
+
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<header class="picker">
+  <span class="brand">Browser concepts</span>
+  <nav class="nums" id="nums" aria-label="Designs"></nav>
+  <div class="info" id="info" aria-live="polite"></div>
+  <div class="ctrl">
+    <button id="prev" aria-label="Previous design">&#8592;</button>
+    <button id="next" aria-label="Next design">&#8594;</button>
+    <button id="vertBtn" aria-pressed="false">Vertical tabs</button>
+    <button id="compactBtn" aria-pressed="false">Compact</button>
+  </div>
+  <span class="keys">Keys: arrows or 1&ndash;9 switch, V vertical tabs, C compact</span>
+</header>
+<main class="stage" id="stage"></main>
+
+<script>
+/* ---------- Icons ---------- */
+const ICONS={
+  back:'<path d="M15 18l-6-6 6-6"/>',
+  fwd:'<path d="M9 18l6-6-6-6"/>',
+  reload:'<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/>',
+  plus:'<path d="M12 5v14M5 12h14"/>',
+  x:'<path d="M6 6l12 12M18 6L6 18"/>',
+  shield:'<path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/>',
+  menu:'<circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/>',
+  side:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/><path d="M15 10l-2 2 2 2"/>',
+  search:'<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4-4"/>',
+  lock:'<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>'
+};
+const ico=(n,s=16)=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n]}</svg>`;
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+/* ---------- Search engines ---------- */
+const ENGINES=[
+  {id:'hub',name:'Universal hub',color:'#7c5cff',letter:'U',sub:'Google, Brave Search and DuckDuckGo at once'},
+  {id:'google',name:'Google',color:'#4285f4',letter:'G',url:'https://www.google.com/search?q='},
+  {id:'brave',name:'Brave Search',color:'#fb542b',letter:'B',url:'https://search.brave.com/search?q='},
+  {id:'ddg',name:'DuckDuckGo',color:'#de5833',letter:'D',url:'https://duckduckgo.com/?q='},
+  {id:'bing',name:'Bing',color:'#0f7b8a',letter:'b',url:'https://www.bing.com/search?q='},
+  {id:'startpage',name:'Startpage',color:'#6573ff',letter:'S',url:'https://www.startpage.com/do/search?q='},
+  {id:'ecosia',name:'Ecosia',color:'#2f9e6f',letter:'E',url:'https://www.ecosia.org/search?q='},
+  {id:'qwant',name:'Qwant',color:'#3a6fd8',letter:'Q',url:'https://www.qwant.com/?q='}
+];
+const ENG=Object.fromEntries(ENGINES.map(e=>[e.id,e]));
+const HUB=['google','brave','ddg'];
+
+/* ---------- State ---------- */
+const SITES={
+  news:{title:'Northwind Daily',url:'northwind.news/today'},
+  recipes:{title:'Pixel Kitchen: lemon garlic pasta',url:'pixelkitchen.cook/lemon-pasta'},
+  docs:{title:'Dev Notes: embedding CEF',url:'devnotes.dev/cef/first-window'}
+};
+const COLORS=['#5b8cff','#ff8a5b','#3ecf8e','#c77dff','#f5b83d','#3fc6e8'];
+let uid=0;
+function mkTab(s){uid++;return{id:uid,color:COLORS[uid%COLORS.length],blocked:rnd(s),hist:[s],hi:0}}
+function rnd(s){return s.page==='newtab'?0:6+Math.floor(Math.random()*55)}
+const S={d:0,engine:'google',shield:true,compact:false,vertical:false,sideMini:false,menuOpen:false,active:0,
+  tabs:[mkTab({page:'newtab'}),mkTab({page:'news'}),mkTab({page:'recipes'}),mkTab({page:'docs'})]};
+const cur=()=>S.tabs[S.active];
+const snap=t=>t.hist[t.hi];
+const ph=()=>S.engine==='hub'?'Search everywhere at once or type a site':`Search with ${ENG[S.engine].name} or type a site`;
+function titleOf(s){
+  if(s.page==='newtab')return 'New tab';
+  if(s.page==='search')return s.q;
+  if(s.page==='url'){try{return new URL(s.url).hostname.replace(/^www\./,'')}catch(e){return s.url}}
+  return SITES[s.page].title;
+}
+function urlOf(s){
+  if(s.page==='newtab')return '';
+  if(s.page==='search')return s.q;
+  if(s.page==='url')return s.url.replace(/^https?:\/\//,'');
+  return SITES[s.page].url;
+}
+function go(text){
+  text=String(text).trim(); if(!text)return;
+  let s;
+  if(text[0]==='@'&&SITES[text.slice(1)])s={page:text.slice(1)};
+  else if(/^(https?:\/\/)?[\w-]+(\.[\w-]+)+(:\d+)?(\/\S*)?$/i.test(text))s={page:'url',url:/^https?:/i.test(text)?text:'https://'+text};
+  else s={page:'search',q:text,eng:S.engine};
+  const t=cur(); t.hist=t.hist.slice(0,t.hi+1); t.hist.push(s); t.hi++; t.blocked=rnd(s);
+  render();
+}
+
+/* ---------- Building blocks ---------- */
+const fav=t=>`<span class="fav" style="--c:${t.color}"></span>`;
+function tabsHTML(o={}){
+  const close=o.close!==false;
+  return S.tabs.map((t,i)=>{
+    const s=snap(t),title=esc(titleOf(s)),on=i===S.active;
+    const x=close?`<button class="tx" data-act="close" data-i="${i}" aria-label="Close tab" title="Close tab">${ico('x',12)}</button>`:'';
+    if(on&&o.activeInput)return `<div class="tab-in">${fav(t)}${urlInput()}${x}</div>`;
+    return `<div class="tab${on?' on':''}" data-act="tab" data-i="${i}" tabindex="0" role="tab" aria-selected="${on}" title="${title}">${fav(t)}<span class="tt">${title}</span>${x}</div>`;
+  }).join('');
+}
+const newTab=()=>`<button class="ib newt" data-act="newtab" aria-label="New tab" title="New tab">${ico('plus')}</button>`;
+function nav(){
+  const t=cur();
+  return `<button class="ib" data-act="back" ${t.hi>0?'':'disabled'} aria-label="Back" title="Back">${ico('back')}</button>`+
+         `<button class="ib c-hide" data-act="fwd" ${t.hi<t.hist.length-1?'':'disabled'} aria-label="Forward" title="Forward">${ico('fwd')}</button>`+
+         `<button class="ib c-hide" data-act="reload" aria-label="Reload" title="Reload">${ico('reload')}</button>`;
+}
+const urlInput=()=>`<input class="url" data-url value="${esc(urlOf(snap(cur())))}" placeholder="${esc(ph())}" spellcheck="false" autocomplete="off" aria-label="Address bar">`;
+function shield(){
+  const t=cur();
+  return `<button class="shield${S.shield?' on':''}" data-act="shield" title="${S.shield?'Ad blocker is on. Click to turn it off.':'Ad blocker is off. Click to turn it on.'}">${ico('shield',15)}<span>${S.shield?t.blocked:'Off'}</span>${S.shield?'<em class="lbl">ads blocked</em>':''}</button>`;
+}
+const menu=()=>`<button class="ib" data-act="menu" aria-label="Menu" aria-haspopup="menu" aria-expanded="${S.menuOpen}" title="Menu">${ico('menu')}</button>`;
+const wc=()=>`<div class="wc" aria-hidden="true"><span></span><span></span><span class="x"></span></div>`;
+const view=(i=S.active)=>`<div class="view" data-tab="${i}"><iframe title="Page"></iframe></div>`;
+const H=()=>!S.vertical;
+const wcV=()=>S.vertical?wc():'';
+function side(o={}){
+  const mini=S.sideMini&&!o.float;
+  return `<aside class="vside${mini?' mini':''}" aria-label="Tabs">${tabsHTML()}<button class="vnew" data-act="newtab" title="New tab">${ico('plus')}<span>New tab</span></button>`+
+    (o.float?'':`<button class="ib vmini" data-act="sidemini" aria-label="${mini?'Expand':'Shrink'} sidebar" title="${mini?'Expand':'Shrink'} sidebar">${ico('side')}</button>`)+`</aside>`;
+}
+const body=(v=view())=>S.vertical?`<div class="vbody">${side()}${v}</div>`:v;
+function menuPop(){
+  const row=(o,label,on)=>`<button class="mrow" data-act="opt" data-o="${o}" role="menuitemcheckbox" aria-checked="${on}"><span>${label}</span><i class="sw${on?' on':''}"></i></button>`;
+  return `<div class="mpop" role="menu">${row('vertical','Vertical tabs',S.vertical)}${row('compact','Compact mode',S.compact)}${row('shield','Ad blocker',S.shield)}</div>`;
+}
+
+/* ---------- The designs ---------- */
+const DESIGNS=[
+ {name:'Clean',blurb:'The classic Chromium shape, tidied up. Tabs on top and one calm toolbar.',
+  theme:{bg:'#f4f6fb',card:'#ffffff',tx:'#1d2330',mu:'#5d6577',ac:'#2f6bff',on:'#ffffff',ln:'#e3e7ee'},
+  render:()=>`<div class="win d1">${H()?`<div class="d1-tabs">${tabsHTML()}${newTab()}<div class="sp"></div>${wc()}</div>`:''}
+   <div class="d1-bar">${nav()}<div class="d1-omni">${ico('lock',14)}${urlInput()}</div>${shield()}${menu()}${wcV()}</div>${body()}</div>`},
+ {name:'One line',blurb:'Tabs and address bar share one row. The active tab turns into the address bar, so pages get almost the whole window.',
+  theme:{bg:'#1f2124',card:'#2a2c30',tx:'#e8eaed',mu:'#9aa0a8',ac:'#8ab4ff',on:'#1b1d20',ln:'#3a3d42'},
+  render:()=>`<div class="win d2"><div class="d2-row">${nav()}`+
+    (H()?`<div class="d2-tabs">${tabsHTML({activeInput:true})}</div>${newTab()}`:`<div class="d2-tabs"><div class="tab-in">${fav(cur())}${urlInput()}</div></div>`)+
+    `${shield()}${menu()}${wc()}</div>${body()}</div>`},
+ {name:'Frameless',blurb:'No window frame. The page fills everything and a floating bar sits on top. With vertical tabs on, a floating rail on the left opens when you hover it.',
+  theme:{bg:'#15171b',card:'#1f2227',tx:'#eaeef0',mu:'#98a2a6',ac:'#8fd3c4',on:'#10211d',ln:'#2c3036'},
+  render:()=>`<div class="win d3">${view()}<div class="d3-float"><div class="d3-bar">${nav()}${urlInput()}${shield()}${menu()}</div>`+
+    (H()?`<div class="d3-tabs">${tabsHTML({close:false})}${newTab()}</div>`:'')+`</div>${S.vertical?side({float:true}):''}</div>`},
+ {name:'Glass',blurb:'Translucent chrome over a colorful backdrop, in the spirit of KDE Plasma. The page sits on its own rounded card.',
+  theme:{bg:'linear-gradient(160deg,#2a1f55,#173a4a 60%,#4a1d35)',card:'rgba(255,255,255,.08)',tx:'#f3f1ff',mu:'#c4bfe0',ac:'#cbb8ff',on:'#2a1f55',ln:'rgba(255,255,255,.16)'},
+  render:()=>`<div class="win d4${S.vertical?' vert':''}">${H()?`<div class="d4-top">${tabsHTML()}${newTab()}<div class="sp"></div>${wc()}</div>`:''}
+   <div class="d4-bar">${nav()}<div class="d4-omni">${ico('search',14)}${urlInput()}</div>${shield()}${menu()}${wcV()}</div>${body()}</div>`},
+ {name:'Command',blurb:'A big centered address bar, with tabs shrunk to pills above it.',
+  theme:{bg:'#eef0ea',card:'#ffffff',tx:'#1e2a22',mu:'#5d6b61',ac:'#2e7d5b',on:'#ffffff',ln:'#d3d8cf'},
+  render:()=>`<div class="win d5">${H()?`<div class="d5-top">${tabsHTML()}${newTab()}<div class="sp"></div>${wc()}</div>`:''}
+   <div class="d5-cmd"><div class="d5-side">${nav()}</div><div class="d5-omni">${ico('search',16)}${urlInput()}${shield()}</div><div class="d5-side r">${menu()}${wcV()}</div></div>${body()}</div>`},
+ {name:'Islands',blurb:'Each group of controls floats as its own island. Hover the ad blocker badge and it expands to show what it did.',
+  theme:{bg:'#1f2226',card:'#2c3036',tx:'#e9e6df',mu:'#a29e96',ac:'#ffb547',on:'#2a1f08',ln:'#3a3e45'},
+  render:()=>`<div class="win d6${S.vertical?' vert':''}"><div class="d6-row"><div class="isl">${nav()}</div><div class="isl d6-omni">${urlInput()}${shield()}</div><div class="isl">${menu()}</div><div class="isl">${wc()}</div></div>
+   ${H()?`<div class="d6-tabs">${tabsHTML()}${newTab()}</div>`:''}${body()}</div>`},
+ {name:'Bottom bar',blurb:'Tabs and address bar sit at the bottom edge, like phone browsers. The top of the window is all page.',
+  theme:{bg:'#0f1d2b',card:'#16283c',tx:'#dbe8f5',mu:'#8fa7bf',ac:'#4cc2ff',on:'#062033',ln:'#1f3a57'},
+  render:()=>`<div class="win d8">${body()}${H()?`<div class="d8-tabs">${tabsHTML()}${newTab()}</div>`:''}
+   <div class="d8-bar">${nav()}<div class="d8-omni">${urlInput()}</div>${shield()}${menu()}</div></div>`},
+ {name:'Split',blurb:'Two pages side by side: the active tab on the left and the next tab on the right. Click the right pane\'s title to switch to it.',
+  theme:{bg:'#f3f2f7',card:'#ffffff',tx:'#211d33',mu:'#5f5a78',ac:'#6c4cf5',on:'#ffffff',ln:'#e1deec'},
+  render:()=>{
+    const ri=S.tabs.length>1?(S.active+1)%S.tabs.length:S.active;
+    const capL=esc(titleOf(snap(cur()))),capR=esc(titleOf(snap(S.tabs[ri])));
+    const split=`<div class="d9-split"><div class="d9-pane"><div class="d9-cap focus">${capL}</div>${view()}</div>
+      <div class="d9-pane">${ri===S.active?`<div class="d9-cap">${capR}</div>`:`<button class="d9-cap" data-act="tab" data-i="${ri}" title="Switch to this tab">${capR}</button>`}${view(ri)}</div></div>`;
+    return `<div class="win d9">${H()?`<div class="d9-tabs">${tabsHTML()}${newTab()}<div class="sp"></div>${wc()}</div>`:''}
+     <div class="d9-bar">${nav()}<div class="d9-omni">${urlInput()}</div>${shield()}${menu()}${wcV()}</div>${body(split)}</div>`;}},
+ {name:'Slate',blurb:'Dark and calm, made with vertical tabs in mind. Turn vertical tabs on and shrink the sidebar down to icons with the button at its bottom.',
+  theme:{bg:'#1b1d1f',card:'#232629',tx:'#e3e6e8',mu:'#8d9398',ac:'#3ddbb8',on:'#0d2a24',ln:'#2e3236'},
+  render:()=>`<div class="win d10">${H()?`<div class="d10-tabs">${tabsHTML()}${newTab()}<div class="sp"></div>${wc()}</div>`:''}
+   <div class="d10-top">${nav()}<div class="d10-omni">${ico('lock',14)}${urlInput()}</div>${shield()}${menu()}${wcV()}</div>${body()}</div>`}
+];
+
+/* ---------- Pages shown in the iframe ---------- */
+const SCRIPT_OPEN='<scr'+'ipt>',SCRIPT_CLOSE='</scr'+'ipt>';
+function pageDoc(s,T){
+  const sh=S.shield;
+  const base='*{box-sizing:border-box}body{margin:0;-webkit-font-smoothing:antialiased}'+
+   '.ad{margin:22px 0;padding:16px;border-radius:10px;background:repeating-linear-gradient(45deg,#ff2d55 0 14px,#ffcc00 14px 28px);color:#000;font:700 16px/1.4 system-ui,sans-serif;text-align:center}'+
+   '.ad b{display:block;font-size:22px}'+
+   '.pop{position:fixed;right:20px;bottom:20px;z-index:9;width:280px;padding:16px;border-radius:12px;background:#fff;color:#111;font:14px/1.4 system-ui,sans-serif;box-shadow:0 20px 60px rgba(0,0,0,.35)}'+
+   '.pop p{margin:6px 0 12px;color:#555}.pop div{display:flex;gap:8px}.pop span{padding:8px 14px;border-radius:8px}.pop .y{background:#ff2d55;color:#fff;font-weight:600}.pop .n{color:#777}'+
+   '.ei{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:7px;color:#fff;font:700 12px system-ui,sans-serif;font-style:normal;flex:none}';
+  /* With the blocker on, ads simply aren't there. */
+  const ad=sh?'':'<div class="ad"><b>MEGA SALE!!!</b>90% off everything, today only. Click now!</div>';
+  const pop=sh?'':'<div class="pop"><b>Wait, don\'t leave yet!</b><p>Subscribe for daily deals and allow notifications.</p><div><span class="y">Allow</span><span class="n">No thanks</span></div></div>';
+  const themeVars=`:root{--bg:${T.bg};--card:${T.card};--tx:${T.tx};--mu:${T.mu};--ac:${T.ac};--on:${T.on};--ln:${T.ln}}`;
+  const wrap=(b,css)=>'<!doctype html><html><head><meta charset="utf-8"><style>'+base+css+'</style></head><body>'+b+'</body></html>';
+
+  if(s.page==='newtab'){
+    const h=new Date().getHours();
+    const g=h<5?'Good night':h<12?'Good morning':h<18?'Good afternoon':'Good evening';
+    const opt=e=>`<button type="button" class="opt" role="option" data-id="${e.id}" aria-selected="false"><i class="ei" style="background:${e.color}">${e.letter}</i><span>${e.name}${e.sub?`<small>${e.sub}</small>`:''}</span></button>`;
+    const list=opt(ENGINES[0])+'<div class="sep"></div>'+ENGINES.slice(1).map(opt).join('');
+    const tiles=[['Wikipedia','wikipedia.org','#3a3f47'],['Example','example.com','#5b8cff'],['Northwind','@news','#ff8a5b'],['Pixel Kitchen','@recipes','#3ecf8e'],['Dev Notes','@docs','#c77dff']]
+      .map(t=>`<button class="tile" onclick="parent.postMessage({go:'${t[1]}'},'*')"><i style="background:${t[2]}">${t[0][0]}</i>${t[0]}</button>`).join('');
+    const cards=[['Weather','Clear skies and around 12°C for the weekend','12 min ago'],['Tech','A small open-source text editor reaches version 1.0','40 min ago'],
+      ['Games','Indie studio patches its co-op shooter after player feedback','1 h ago'],['Local','Town library keeps longer opening hours through winter','2 h ago']]
+      .map(c=>`<article><span>${c[0]}</span><h3>${c[1]}</h3><small>${c[2]}</small></article>`).join('');
+    const js=`var E=${JSON.stringify(ENGINES.map(e=>({id:e.id,name:e.name,color:e.color,letter:e.letter})))};
+var ddb=document.getElementById('ddb'),ddl=document.getElementById('ddl'),q=document.getElementById('q'),hn=document.getElementById('hn');
+function set(id){var e=E.filter(function(x){return x.id===id})[0];var i=ddb.querySelector('.ei');i.style.background=e.color;i.textContent=e.letter;
+ddb.querySelector('.nm').textContent=e.name;q.placeholder=id==='hub'?'Search everywhere at once':'Search with '+e.name;hn.hidden=id!=='hub';
+[].forEach.call(ddl.querySelectorAll('.opt'),function(o){o.setAttribute('aria-selected',o.getAttribute('data-id')===id)})}
+function show(v){ddl.hidden=!v;ddb.setAttribute('aria-expanded',v);if(v){var s=ddl.querySelector('[aria-selected=true]');if(s)s.focus()}}
+ddb.addEventListener('click',function(){show(ddl.hidden)});
+ddl.addEventListener('click',function(ev){var o=ev.target.closest('.opt');if(!o)return;var id=o.getAttribute('data-id');set(id);show(false);parent.postMessage({engine:id},'*');q.focus()});
+ddl.addEventListener('keydown',function(ev){var os=[].slice.call(ddl.querySelectorAll('.opt')),i=os.indexOf(document.activeElement);
+if(ev.key==='ArrowDown'){ev.preventDefault();os[(i+1)%os.length].focus()}else if(ev.key==='ArrowUp'){ev.preventDefault();os[(i-1+os.length)%os.length].focus()}else if(ev.key==='Escape'){show(false);ddb.focus()}});
+document.addEventListener('click',function(ev){if(!ev.target.closest('.dd'))show(false)});
+document.getElementById('f').addEventListener('submit',function(ev){ev.preventDefault();if(q.value.trim())parent.postMessage({search:q.value},'*')});
+set('${S.engine}');`;
+    return wrap(`<main><p class="hi">${g}</p>
+      <form class="sb" id="f" role="search">
+        <div class="dd"><button type="button" class="ddb" id="ddb" aria-haspopup="listbox" aria-expanded="false" title="Choose search engine"><i class="ei"></i><span class="nm"></span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
+        <div class="ddl" id="ddl" role="listbox" aria-label="Search engine" hidden>${list}</div></div>
+        <span class="div"></span><input id="q" autocomplete="off" spellcheck="false" aria-label="Search"><button class="go" type="submit">Search</button>
+      </form>
+      <p class="hn" id="hn" hidden>Universal hub searches Google, Brave Search and DuckDuckGo at the same time and shows them next to each other.</p>
+      <h2>Shortcuts</h2><div class="tiles">${tiles}</div>
+      <h2>News</h2><p class="sub">Placeholder headlines. Later this fills from sources you choose.</p><div class="grid">${cards}</div></main>`+SCRIPT_OPEN+js+SCRIPT_CLOSE,
+      themeVars+'body{font-family:system-ui,sans-serif;color:var(--tx);background:var(--bg);min-height:100vh}'+
+      'main{max-width:760px;margin:0 auto;padding:14vh 24px 48px}.hi{margin:0 0 14px;text-align:center;color:var(--mu);font-size:15px}'+
+      '.sb{display:flex;align-items:center;gap:6px;height:56px;padding:6px;border-radius:16px;background:var(--card);box-shadow:0 0 0 1px var(--ln),0 10px 30px rgba(0,0,0,.08)}'+
+      '.sb:focus-within{box-shadow:0 0 0 2px var(--ac),0 10px 30px rgba(0,0,0,.08)}'+
+      '.dd{position:relative;height:100%}.ddb{display:flex;align-items:center;gap:8px;height:100%;padding:0 10px 0 8px;border:0;border-radius:11px;background:transparent;color:var(--tx);font:500 14px system-ui,sans-serif;white-space:nowrap;cursor:pointer}'+
+      '.ddb:hover,.ddb[aria-expanded=true]{background:rgba(127,127,127,.14)}.ddb svg{opacity:.6}'+
+      '.ddl{position:absolute;top:calc(100% + 10px);left:-6px;z-index:5;width:290px;padding:6px;border-radius:14px;background:var(--card);backdrop-filter:blur(24px);box-shadow:0 0 0 1px var(--ln),0 18px 50px rgba(0,0,0,.28)}'+
+      '.ddl[hidden]{display:none}.opt{display:flex;align-items:center;gap:10px;width:100%;padding:8px 10px;border:0;border-radius:9px;background:transparent;color:var(--tx);font:14px/1.3 system-ui,sans-serif;text-align:left;cursor:pointer}'+
+      '.opt:hover,.opt:focus-visible{background:rgba(127,127,127,.14);outline:none}.opt span{flex:1}.opt small{display:block;color:var(--mu);font-size:12px}'+
+      '.opt[aria-selected=true]{font-weight:600}.opt[aria-selected=true]::after{content:"";width:8px;height:8px;border-radius:50%;background:var(--ac)}'+
+      '.sep{height:1px;margin:6px 4px;background:var(--ln)}.div{width:1px;height:55%;background:var(--ln)}'+
+      '#q{flex:1;min-width:0;height:100%;padding:0 8px;border:0;background:transparent;color:var(--tx);font:16px system-ui,sans-serif;outline:none}#q::placeholder{color:var(--mu)}'+
+      '.go{height:100%;padding:0 18px;border:0;border-radius:11px;background:var(--ac);color:var(--on);font:600 14px system-ui,sans-serif;cursor:pointer}'+
+      '.hn{margin:12px 0 0;text-align:center;color:var(--mu);font-size:13px}.hn[hidden]{display:none}'+
+      'h2{margin:44px 0 12px;font-size:14px;font-weight:600;color:var(--mu)}.sub{margin:-6px 0 14px;color:var(--mu);font-size:13px}'+
+      '.tiles{display:flex;gap:10px;flex-wrap:wrap}.tile{display:flex;flex-direction:column;align-items:center;gap:8px;width:96px;padding:14px 6px;border:0;border-radius:14px;background:var(--card);color:var(--tx);font:13px system-ui,sans-serif;cursor:pointer;box-shadow:0 0 0 1px var(--ln)}'+
+      '.tile:hover{box-shadow:0 0 0 1px var(--ac)}.tile i{display:grid;place-items:center;width:36px;height:36px;border-radius:10px;color:#fff;font-style:normal;font-weight:700}'+
+      '.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}article{padding:14px;border-radius:12px;background:var(--card);box-shadow:0 0 0 1px var(--ln)}'+
+      'article span{font-size:12px;color:var(--ac);font-weight:600}article h3{margin:6px 0 10px;font-size:15px;line-height:1.35}article small{color:var(--mu)}');
+  }
+
+  if(s.page==='search'){
+    const q=s.q,Q=esc(q),slug=encodeURIComponent(q.toLowerCase().replace(/\s+/g,'-')),eid=s.eng||'google';
+    const items=[[`${Q}: a beginner's guide`,`learnhub.example/guides/${slug}`,`Start here if ${Q} is new to you. The basics with short examples.`],
+      [`${Q} on Wikipedia`,`en.wikipedia.org/wiki/${slug}`,'Overview, history and related topics.'],
+      [`What people say about ${Q}`,`forum.example/t/${slug}`,'A long thread with tips, opinions and a few arguments.'],
+      [`${Q} news today`,`northwind.news/topics/${slug}`,`The latest stories that mention ${Q}.`],
+      [`10 ${Q} tricks worth knowing`,`blog.example/${slug}-tricks`,'Quick wins collected from readers.']];
+    const col=(id,k)=>{const e=ENG[id];const list=items.map((_,j)=>items[(j+k)%items.length]);
+      return `<section><div class="eh"><i class="ei" style="background:${e.color}">${e.letter}</i>${e.name}</div>${list.map(r=>`<div class="r"><div class="u">${r[1]}</div><div class="t">${r[0]}</div><div class="d">${r[2]}</div></div>`).join('')}
+      <a href="${e.url+encodeURIComponent(q)}" target="_blank" rel="noopener">Open the real ${e.name} results in a new window</a></section>`;};
+    const shared='.eh{display:flex;align-items:center;gap:8px;margin-bottom:16px;font-weight:600;font-size:14px}'+
+      '.r{margin-bottom:20px}.u{font-size:12px;opacity:.7}.t{margin:3px 0;font-size:18px}.d{font-size:14px;line-height:1.45;opacity:.8}'+
+      'a{display:inline-block;margin-top:4px;padding:8px 14px;border-radius:8px;font-size:13px;text-decoration:none}';
+    if(eid==='hub'){
+      return wrap(`<main><h1>Universal hub</h1><p class="sub">&ldquo;${Q}&rdquo; on Google, Brave Search and DuckDuckGo at the same time. These are placeholders: search engines don't allow being shown inside another page, so each column opens its real results in a new window.</p>
+        <div class="cols">${HUB.map((id,k)=>col(id,k)).join('')}</div>${ad}</main>${pop}`,
+        themeVars+shared+'body{font-family:system-ui,sans-serif;color:var(--tx);background:var(--bg);min-height:100vh}main{padding:28px 32px 40px}'+
+        'h1{margin:0;font-size:24px}.sub{margin:6px 0 24px;max-width:70ch;color:var(--mu);font-size:13px;line-height:1.5}'+
+        '.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px}section{padding:18px;border-radius:14px;background:var(--card);box-shadow:0 0 0 1px var(--ln)}'+
+        '.t{color:var(--ac)}a{background:var(--ac);color:var(--on)}');
+    }
+    return wrap(`<main><p class="note">Placeholder results. Search engines don't allow being shown inside another page, so the real ${ENG[eid].name} results open in a new window.</p>
+      <div class="cols">${col(eid,ENGINES.findIndex(e=>e.id===eid))}</div>${ad}</main>${pop}`,
+      shared+'body{font-family:system-ui,sans-serif;color:#202124;background:#fff}main{max-width:720px;padding:28px 32px 40px}'+
+      '.note{margin:0 0 22px;padding:10px 14px;border-radius:10px;background:#f1f3f4;color:#555;font-size:13px}.t{color:#1a0dab}a{background:#202124;color:#fff}');
+  }
+
+  if(s.page==='news'){
+    return wrap(`<header><div class="logo">Northwind Daily</div><nav><span>World</span><span>Tech</span><span>Science</span><span>Culture</span></nav></header>
+      <main><article class="lead"><div class="img"></div><h1>Council approves new bike lanes across the old town</h1>
+      <p>The plan connects the station, the market square and both schools, with work starting in spring. Residents get a say on the final routes at two public meetings next month.</p></article>
+      ${ad}<div class="grid"><article><h2>Night trains return to the northern line</h2><p>Three weekly services restart in December.</p></article>
+      <article><h2>Students build a weather station from spare parts</h2><p>It now feeds live data to the school website.</p></article>
+      <article><h2>Old cinema reopens as a community space</h2><p>Film nights, a café and a small repair shop.</p></article></div></main>${pop}`,
+      'body{font-family:Georgia,"Times New Roman",serif;color:#1d1d1f;background:#fbfaf7}header{display:flex;align-items:baseline;justify-content:space-between;gap:20px;padding:22px 36px;border-bottom:1px solid #ddd}'+
+      '.logo{font-size:28px;font-weight:700;letter-spacing:-.01em}nav{display:flex;gap:18px;font:14px system-ui,sans-serif;color:#555}main{max-width:900px;margin:0 auto;padding:28px 36px 60px}'+
+      '.img{height:240px;border-radius:6px;background:linear-gradient(135deg,#2f6f73,#8fbfa0 60%,#e8d9a8)}.lead h1{font-size:34px;line-height:1.15;margin:18px 0 10px}.lead p{font-size:18px;line-height:1.6;color:#333;max-width:65ch;margin-bottom:28px}'+
+      '.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:24px}.grid h2{font-size:20px;line-height:1.25;margin:0 0 6px}.grid p{margin:0;color:#555;line-height:1.5}');
+  }
+  if(s.page==='recipes'){
+    return wrap(`<div class="hero"><span>20 minutes</span><h1>Lemon garlic pasta</h1><p>Five ingredients, one pan, done before the water gets bored.</p></div>
+      <main><div class="cols"><section><h2>You need</h2><ul><li>200 g spaghetti</li><li>3 cloves garlic</li><li>1 lemon, zest and juice</li><li>3 tbsp olive oil</li><li>Parmesan to finish</li></ul></section>
+      <section><h2>Steps</h2><ol><li>Cook the pasta in salted water.</li><li>Gently fry sliced garlic in the oil until golden.</li><li>Add zest, juice and a splash of pasta water.</li><li>Toss the pasta through and finish with parmesan.</li></ol></section></div>${ad}</main>${pop}`,
+      'body{font-family:system-ui,sans-serif;color:#2b2118;background:#fffaf2}.hero{padding:70px 40px 40px;background:linear-gradient(135deg,#ffd27a,#ff9f68)}'+
+      '.hero span{font-size:13px;font-weight:600;background:#2b2118;color:#ffd27a;padding:4px 10px;border-radius:999px}.hero h1{font-size:44px;margin:14px 0 6px;letter-spacing:-.02em}.hero p{margin:0;font-size:17px}'+
+      'main{max-width:860px;padding:30px 40px 60px}.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:30px}h2{font-size:17px}li{margin:8px 0;line-height:1.5}');
+  }
+  if(s.page==='docs'){
+    return wrap(`<div class="wrap"><aside><b>Dev Notes</b><span class="on">First window</span><span>Handling navigation</span><span>Tabs and browsers</span><span>Downloads</span><span>Packaging</span></aside>
+      <main><h1>Embedding CEF: the first window</h1><p>CEF gives you Chromium as a library. Your program owns the window and the UI, and CEF draws the web page inside it.</p>
+      <pre>int main(int argc, char* argv[]) {
+  CefMainArgs args(argc, argv);
+  CefRefPtr&lt;SimpleApp&gt; app(new SimpleApp);
+  CefSettings settings;
+  CefInitialize(args, settings, app.get(), nullptr);
+  CefRunMessageLoop();
+  CefShutdown();
+}</pre><p>Every tab is a <code>CefBrowser</code>. Your tab strip, address bar and buttons are normal native UI that talk to it.</p>${ad}</main></div>${pop}`,
+      'body{font-family:system-ui,sans-serif;color:#d8dee6;background:#14181d}.wrap{display:flex;min-height:100vh}aside{width:210px;flex:none;display:flex;flex-direction:column;gap:4px;padding:28px 18px;border-right:1px solid #262c33;font-size:14px;color:#8b95a1}'+
+      'aside b{color:#fff;margin-bottom:12px}aside span{padding:6px 10px;border-radius:6px}aside .on{background:#1f2730;color:#7cc4ff}main{max-width:720px;padding:34px 40px 60px}h1{color:#fff;font-size:30px;margin:0 0 12px}p{line-height:1.65}'+
+      'pre{padding:18px;border-radius:10px;background:#0d1014;color:#a6e3a1;font:13px/1.6 ui-monospace,"JetBrains Mono",monospace;overflow:auto}code{font-family:ui-monospace,monospace;color:#7cc4ff}');
+  }
+  return wrap('<p>Unknown page</p>','');
+}
+function fillView(v){
+  const tab=S.tabs[+v.dataset.tab]; if(!tab)return;
+  const s=snap(tab),f=v.querySelector('iframe');
+  if(s.page==='url'){
+    f.src=s.url;
+    v.insertAdjacentHTML('beforeend','<div class="embed-note">Stays blank? That site blocks being shown inside another page. Try wikipedia.org or example.com.</div>');
+  }else f.srcdoc=pageDoc(s,DESIGNS[S.d].theme);
+}
+
+/* ---------- Render ---------- */
+const stage=document.getElementById('stage'),nums=document.getElementById('nums'),info=document.getElementById('info'),
+      cbtn=document.getElementById('compactBtn'),vbtn=document.getElementById('vertBtn');
+function render(){
+  const D=DESIGNS[S.d];
+  stage.innerHTML=D.render();
+  const win=stage.firstElementChild;
+  win.classList.toggle('compact',S.compact);
+  stage.querySelectorAll('.view').forEach(fillView);
+  if(S.menuOpen){
+    win.insertAdjacentHTML('beforeend',menuPop());
+    const pop=win.querySelector('.mpop'),b=win.querySelector('[data-act="menu"]');
+    const wr=win.getBoundingClientRect(),br=b.getBoundingClientRect();
+    pop.style.right=Math.max(8,wr.right-br.right)+'px';
+    if(br.top-wr.top>wr.height/2)pop.style.bottom=(wr.bottom-br.top+6)+'px';else pop.style.top=(br.bottom-wr.top+6)+'px';
+  }
+  nums.innerHTML=DESIGNS.map((d,i)=>`<button class="${i===S.d?'on':''}" data-d="${i}" aria-label="Design ${i+1}, ${d.name}" title="${d.name}">${i+1}</button>`).join('');
+  info.innerHTML=`<b>${S.d+1}. ${D.name}</b><p>${D.blurb}</p>`;
+  cbtn.setAttribute('aria-pressed',S.compact);
+  vbtn.setAttribute('aria-pressed',S.vertical);
+}
+const setD=i=>{S.d=(i+DESIGNS.length)%DESIGNS.length;S.menuOpen=false;render()};
+
+/* ---------- Events ---------- */
+nums.addEventListener('click',e=>{const b=e.target.closest('[data-d]');if(b)setD(+b.dataset.d)});
+document.getElementById('prev').onclick=()=>setD(S.d-1);
+document.getElementById('next').onclick=()=>setD(S.d+1);
+cbtn.onclick=()=>{S.compact=!S.compact;S.menuOpen=false;render()};
+vbtn.onclick=()=>{S.vertical=!S.vertical;S.menuOpen=false;render()};
+
+stage.addEventListener('click',e=>{
+  const b=e.target.closest('[data-act]');
+  if(S.menuOpen&&!e.target.closest('.mpop')&&!(b&&b.dataset.act==='menu')){S.menuOpen=false;if(!b){render();return}}
+  if(!b||b.disabled)return;
+  const a=b.dataset.act,i=+b.dataset.i;
+  if(a==='tab')S.active=i;
+  else if(a==='close'){
+    e.stopPropagation();
+    if(S.tabs.length===1){S.tabs=[mkTab({page:'newtab'})];S.active=0}
+    else{S.tabs.splice(i,1);if(i<S.active||S.active>=S.tabs.length)S.active=Math.max(0,S.active-1)}
+  }
+  else if(a==='newtab'){S.tabs.push(mkTab({page:'newtab'}));S.active=S.tabs.length-1;render();const u=stage.querySelector('[data-url]');if(u)u.focus();return}
+  else if(a==='back'){const t=cur();if(t.hi>0)t.hi--}
+  else if(a==='fwd'){const t=cur();if(t.hi<t.hist.length-1)t.hi++}
+  else if(a==='shield')S.shield=!S.shield;
+  else if(a==='menu')S.menuOpen=!S.menuOpen;
+  else if(a==='opt'){S[b.dataset.o]=!S[b.dataset.o]}
+  else if(a==='sidemini')S.sideMini=!S.sideMini;
+  render();
+});
+stage.addEventListener('keydown',e=>{
+  if(e.target.matches('[data-url]')){
+    if(e.key==='Enter')go(e.target.value);
+    else if(e.key==='Escape'){e.target.value=urlOf(snap(cur()));e.target.blur()}
+    return;
+  }
+  if((e.key==='Enter'||e.key===' ')&&e.target.matches('div[data-act]')){e.preventDefault();e.target.click()}
+});
+stage.addEventListener('focusin',e=>{if(e.target.matches('[data-url]'))e.target.select()});
+document.addEventListener('click',e=>{if(S.menuOpen&&e.target.isConnected&&!stage.contains(e.target)){S.menuOpen=false;render()}});
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'&&S.menuOpen){S.menuOpen=false;render();return}
+  if(e.target.closest('input,textarea')||e.ctrlKey||e.altKey||e.metaKey)return;
+  if(e.key==='ArrowRight')setD(S.d+1);
+  else if(e.key==='ArrowLeft')setD(S.d-1);
+  else if(/^[1-9]$/.test(e.key)&&+e.key<=DESIGNS.length)setD(+e.key-1);
+  else if(e.key==='c'||e.key==='C'){S.compact=!S.compact;render()}
+  else if(e.key==='v'||e.key==='V'){S.vertical=!S.vertical;render()}
+});
+window.addEventListener('message',e=>{
+  const d=e.data||{};
+  if(typeof d.engine==='string'&&ENG[d.engine]){S.engine=d.engine;stage.querySelectorAll('[data-url]').forEach(i=>i.placeholder=ph())}
+  else if(typeof d.search==='string')go(d.search);
+  else if(typeof d.go==='string')go(d.go);
+});
+
+render();
+</script>
+</body>
+</html>

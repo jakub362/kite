@@ -1,0 +1,21 @@
+# Build settings for GitHub Actions: one self-contained browser to download
+# and run, instead of the many small libraries of the dev build.
+# Copied into chromium/src/out/Release/args.gn by scripts/build.sh.
+
+is_debug = false
+
+# One big `chrome` binary (plus a few helper files), easy to package.
+is_component_build = false
+
+# No debug symbols: smaller download, faster link, less RAM while linking.
+symbol_level = 0
+blink_symbol_level = 0
+v8_symbol_level = 0
+
+# Google's profile data isn't in the tarball.
+chrome_pgo_phase = 0
+
+# Plain ninja instead of siso (Google's remote-build tool).
+use_siso = false
+
+treat_warnings_as_errors = false

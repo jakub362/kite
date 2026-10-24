@@ -1,0 +1,39 @@
+name: Build Kite (Linux x64)
+
+# Chromium takes longer to compile than one GitHub job may run (6 h), so the
+# build is split into parts. Each part compiles for as long as it can, saves
+# the unfinished build, and the next part continues from there. A part that
+# finishes the build packages Kite instead, and the remaining parts are skipped.
+#
+# Start it from the Actions tab or with: gh workflow run build.yml
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  part1:
+    uses: ./.github/workflows/build-part.yml
+    with: { part: "1", prev: "" }
+  part2:
+    needs: part1
+    if: needs.part1.outputs.done != 'true'
+    uses: ./.github/workflows/build-part.yml
+    with: { part: "2", prev: "1" }
+  part3:
+    needs: part2
+    if: needs.part2.outputs.done != 'true'
+    uses: ./.github/workflows/build-part.yml
+    with: { part: "3", prev: "2" }
+  part4:
+    needs: part3
+    if: needs.part3.outputs.done != 'true'
+    uses: ./.github/workflows/build-part.yml
+    with: { part: "4", prev: "3" }
+  part5:
+    needs: part4
+    if: needs.part4.outputs.done != 'true'
+    uses: ./.github/workflows/build-part.yml
+    with: { part: "5", prev: "4" }
