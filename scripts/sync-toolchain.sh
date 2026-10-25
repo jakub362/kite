@@ -33,4 +33,15 @@ if [ ! -x third_party/node/linux/node-linux-x64/bin/node ]; then
 fi
 third_party/node/linux/node-linux-x64/bin/node --version
 
+# Go runs Dawn's (WebGPU) code generator during the build. It's listed in
+# Dawn's own DEPS as a CIPD package (Google's package store); depot_tools'
+# `cipd` client fetches it at the exact pinned version.
+echo "== go"
+GO_DIR=third_party/dawn/tools/golang/linux-amd64
+if [ ! -x "$GO_DIR/bin/go" ]; then
+  go_version="$(grep -oP "'dawn_go_version': '\K[^']+" third_party/dawn/DEPS)"
+  "$ROOT/depot_tools/cipd" install infra/3pp/tools/go/linux-amd64 "$go_version" -root "$GO_DIR"
+fi
+"$GO_DIR/bin/go" version
+
 echo "== Toolchain ready"

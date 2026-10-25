@@ -35,3 +35,8 @@ Name: **Kite**. Base: Chromium **156.0.8078.47** (stable, 2026-10-24).
 - Node.js unpack failed: `third_party/node/linux` doesn't exist in the tarball. Fix: `mkdir -p` first.
 - depot_tools' `gn` wrapper wanted to bootstrap its own Python. Fix: call the tarball's
   `buildtools/linux64/gn` directly.
+- GitHub build run 1 failed after 47 min (step 10,683/57,345): `FileNotFoundError: .../third_party/dawn/tools/golang/linux-amd64/bin/go`.
+  Dawn (WebGPU) generates code with Go at build time; Go is a CIPD package in Dawn's own DEPS
+  that the lite tarball leaves out. Fix: `scripts/sync-toolchain.sh` installs it with
+  depot_tools' `cipd` at Dawn's pinned version (go 1.26.6). Audited every other Linux
+  CIPD/GCS dep: the rest are for other platforms, tests or Dawn standalone.
